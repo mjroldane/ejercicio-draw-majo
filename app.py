@@ -1,19 +1,16 @@
-import os
 import streamlit as st
-import base64
 import numpy as np
-from openai import OpenAI
 from PIL import Image
 from streamlit_drawable_canvas import st_canvas
 
-# --- CONFIGURACIÓN DE ESCENA ---
+# --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(
-    page_title="SketchMind AI | Creative Studio",
+    page_title="SketchStudio | Interactive Design",
     page_icon="🎨",
     layout="wide"
 )
 
-# --- DISEÑO PREMIUM (GLASSMORPHISM) ---
+# --- DISEÑO ESTÉTICO ---
 st.markdown("""
     <style>
     .stApp {
@@ -41,7 +38,6 @@ st.markdown("""
         border-radius: 15px;
         border: none;
         height: 3.5em;
-        text-transform: uppercase;
     }
     button[key="reset_btn"] {
         background: rgba(255, 75, 75, 0.1) !important;
@@ -56,35 +52,29 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-def encode_image(image_path):
-    with open(image_path, "rb") as img_file:
-        return base64.b64encode(img_file.read()).decode("utf-8")
-
-# --- BARRA LATERAL: TU PANEL DE DISEÑO ---
+# --- PANEL LATERAL ---
 with st.sidebar:
     st.title("Studio Tools")
-    st.markdown("Configura tu entorno creativo.")
     
-    with st.expander("Lienzo Personalizado", expanded=True):
-        canvas_width = st.slider("Ancho", 400, 1000, 700, 50)
-        canvas_height = st.slider("Alto", 300, 800, 450, 50)
+    with st.expander("Dimensiones del Lienzo", expanded=True):
+        canvas_width = st.slider("Ancho", 300, 1000, 700, 50)
+        canvas_height = st.slider("Alto", 200, 800, 450, 50)
     
-    with st.expander("Estilos de Pincel", expanded=True):
-        drawing_mode = st.selectbox("Herramienta", ("freedraw", "line", "rect", "circle", "transform"))
-        stroke_width = st.slider("Grosor", 1, 30, 6)
-        stroke_color = st.color_picker("Tinta", "#000000")
-        bg_color = st.color_picker("Papel", "#FFFFFF")
-
-    st.markdown("---")
-    api_key = st.text_input("OpenAI Key", type="password", placeholder="sk-...")
+    with st.expander("Herramientas de Estilo", expanded=True):
+        drawing_mode = st.selectbox("Herramienta:", 
+            ("freedraw", "line", "rect", "circle", "transform", "polygon", "point"))
+        stroke_width = st.slider('Grosor de línea', 1, 30, 6)
+        stroke_color = st.color_picker("Color de trazo", "#000000")
+        bg_color = st.color_picker("Color de fondo", "#FFFFFF")
 
 # --- INTERFAZ PRINCIPAL ---
-st.title("SketchMind AI")
-st.markdown("#### Transforma tus bocetos en conceptos de diseño profesionales.")
+st.title("SketchStudio AI")
+st.markdown("#### Herramienta de prototipado para Diseño Interactivo")
 
-col_draw, col_ai = st.columns([1.6, 1])
+col_draw, col_info = st.columns([1.6, 1])
 
 with col_draw:
+    # Canvas con tu configuración original de key dinámica
     canvas_result = st_canvas(
         fill_color="rgba(255, 165, 0, 0.3)",
         stroke_width=stroke_width,
@@ -93,54 +83,26 @@ with col_draw:
         height=canvas_height,
         width=canvas_width,
         drawing_mode=drawing_mode,
-        key=f"sketch_mind_{canvas_width}", 
+        key=f"canvas_{canvas_width}_{canvas_height}",
     )
     
-    c1, c2 = st.columns([3, 1])
-    with c1:
-        analyze_btn = st.button("ANALIZAR CONCEPTO")
-    with c2:
-        if st.button("BORRAR TODO", key="reset_btn"):
-            st.rerun()
+    if st.button("BORRAR TODO EL TABLERO", key="reset_btn"):
+        st.rerun()
 
-with col_ai:
-    st.subheader("Interpretación IA")
+with col_info:
+    st.subheader("Formulario Ludificado") # Aplicando tu corrección de términos
     
-    with st.expander("Resultados del Análisis", expanded=True):
-        info_area = st.empty()
+    with st.expander("Notas de Ergonomía Cognitiva", expanded=True):
+        st.markdown("Utiliza este espacio para documentar hallazgos del usuario.")
         
-        if analyze_btn:
-            if not api_key:
-                st.warning("Configura tu API Key en el panel lateral.")
-            elif canvas_result.image_data is not None:
-                with st.spinner("La IA está analizando tu boceto..."):
-                    try:
-                        img_arr = np.array(canvas_result.image_data)
-                        img_obj = Image.fromarray(img_arr.astype('uint8'), 'RGBA')
-                        img_obj.save("temp_idea.png")
-                        
-                        b64_img = encode_image("temp_idea.png")
-                        
-                        client = OpenAI(api_key=api_key)
-                        response = client.chat.completions.create(
-                            model="gpt-4o-mini",
-                            messages=[{
-                                "role": "user",
-                                "content": [
-                                    {"type": "text", "text": "Analiza este boceto desde una perspectiva de diseño. Describe qué representa y sugiere 3 formas de mejorar su ergonomía o experiencia de usuario. Responde en español."},
-                                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64_img}"}}
-                                ]
-                            }]
-                        )
-                        
-                        full_txt = response.choices[0].message.content
-                        info_area.markdown(f"<div class='result-box'>{full_txt}</div>", unsafe_allow_html=True)
-                        
-                    except Exception as e:
-                        st.error(f"Hubo un error al procesar: {e}")
+        # Campos para tus proyectos de EAFIT
+        user_obs = st.text_area("Observaciones del usuario:", placeholder="Escribe aquí qué valoró el usuario...")
+        st.info("Este sistema está diseñado para ser valorado por el usuario final.") # Siguiendo tus guías de estilo
+        
+        if st.button("GUARDAR SESIÓN"):
+            if canvas_result.image_data is not None:
+                st.success("Boceto y notas listas para documentar.")
             else:
-                st.info("Dibuja algo antes de analizar.")
-        else:
-            info_area.write("Tu análisis aparecerá aquí.")
+                st.warning("El lienzo está vacío.")
 
-st.markdown("<br><center><p style='opacity: 0.5;'>SketchMind v4.0 | Creado para el diseño interactivo</p></center>", unsafe_allow_html=True)
+st.markdown("<br><center><p style='opacity: 0.5;'>SketchStudio v5.0 | Universidad EAFIT</p></center>", unsafe_allow_html=True)
