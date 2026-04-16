@@ -1,16 +1,19 @@
+import os
 import streamlit as st
+import base64
 import numpy as np
+from openai import OpenAI
 from PIL import Image
 from streamlit_drawable_canvas import st_canvas
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(
-    page_title="SketchStudio | Interactive Design",
+    page_title="SketchMind AI | Creative Studio",
     page_icon="🎨",
     layout="wide"
 )
 
-# --- DISEÑO ESTÉTICO ---
+# --- DISEÑO ESTÉTICO (GLASSMORPHISM) ---
 st.markdown("""
     <style>
     .stApp {
@@ -38,6 +41,7 @@ st.markdown("""
         border-radius: 15px;
         border: none;
         height: 3.5em;
+        text-transform: uppercase;
     }
     button[key="reset_btn"] {
         background: rgba(255, 75, 75, 0.1) !important;
@@ -52,29 +56,36 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- PANEL LATERAL ---
+def encode_image(image_path):
+    with open(image_path, "rb") as img_file:
+        return base64.b64encode(img_file.read()).decode("utf-8")
+
+# --- PANEL LATERAL (PROPIEDADES DEL TABLERO) ---
 with st.sidebar:
-    st.title("Studio Tools")
+    st.header("Propiedades del Tablero")
     
-    with st.expander("Dimensiones del Lienzo", expanded=True):
-        canvas_width = st.slider("Ancho", 300, 1000, 700, 50)
-        canvas_height = st.slider("Alto", 200, 800, 450, 50)
+    with st.expander("Dimensiones del Tablero", expanded=True):
+        canvas_width = st.slider("Ancho del tablero", 300, 1000, 700, 50)
+        canvas_height = st.slider("Alto del tablero", 200, 800, 450, 50)
     
     with st.expander("Herramientas de Estilo", expanded=True):
-        drawing_mode = st.selectbox("Herramienta:", 
+        drawing_mode = st.selectbox("Herramienta de Dibujo:", 
             ("freedraw", "line", "rect", "circle", "transform", "polygon", "point"))
-        stroke_width = st.slider('Grosor de línea', 1, 30, 6)
+        stroke_width = st.slider('Selecciona el ancho de línea', 1, 30, 6)
         stroke_color = st.color_picker("Color de trazo", "#000000")
         bg_color = st.color_picker("Color de fondo", "#FFFFFF")
 
-# --- INTERFAZ PRINCIPAL ---
-st.title("SketchStudio AI")
-st.markdown("#### Herramienta de prototipado para Diseño Interactivo")
+    st.markdown("---")
+    api_key = st.text_input("OpenAI Key", type="password")
 
-col_draw, col_info = st.columns([1.6, 1])
+# --- INTERFAZ PRINCIPAL ---
+st.title("SketchMind AI")
+st.markdown("#### Un espacio para tu creatividad e investigación interactiva.")
+
+col_draw, col_ai = st.columns([1.6, 1])
 
 with col_draw:
-    # Canvas con tu configuración original de key dinámica
+    # Canvas con los parámetros exactos de tu código original
     canvas_result = st_canvas(
         fill_color="rgba(255, 165, 0, 0.3)",
         stroke_width=stroke_width,
@@ -83,26 +94,54 @@ with col_draw:
         height=canvas_height,
         width=canvas_width,
         drawing_mode=drawing_mode,
-        key=f"canvas_{canvas_width}_{canvas_height}",
+        key=f"canvas_{canvas_width}_{canvas_height}", # Key dinámica
     )
     
-    if st.button("BORRAR TODO EL TABLERO", key="reset_btn"):
-        st.rerun()
+    c1, c2 = st.columns([3, 1])
+    with c1:
+        analyze_btn = st.button("ANALIZAR CONCEPTO")
+    with c2:
+        if st.button("BORRAR TODO", key="reset_btn"):
+            st.rerun()
 
-with col_info:
-    st.subheader("Formulario Ludificado") # Aplicando tu corrección de términos
+with col_ai:
+    st.subheader("Interpretación IA")
     
-    with st.expander("Notas de Ergonomía Cognitiva", expanded=True):
-        st.markdown("Utiliza este espacio para documentar hallazgos del usuario.")
+    with st.expander("Resultados del Análisis", expanded=True):
+        info_area = st.empty()
         
-        # Campos para tus proyectos de EAFIT
-        user_obs = st.text_area("Observaciones del usuario:", placeholder="Escribe aquí qué valoró el usuario...")
-        st.info("Este sistema está diseñado para ser valorado por el usuario final.") # Siguiendo tus guías de estilo
-        
-        if st.button("GUARDAR SESIÓN"):
-            if canvas_result.image_data is not None:
-                st.success("Boceto y notas listas para documentar.")
+        if analyze_btn:
+            if not api_key:
+                st.warning("Configura tu API Key en el panel lateral.")
+            elif canvas_result.image_data is not None:
+                with st.spinner("La IA está analizando tu boceto..."):
+                    try:
+                        img_arr = np.array(canvas_result.image_data)
+                        img_obj = Image.fromarray(img_arr.astype('uint8'), 'RGBA')
+                        img_obj.save("temp_idea.png")
+                        
+                        b64_img = encode_image("temp_idea.png")
+                        
+                        client = OpenAI(api_key=api_key)
+                        response = client.chat.completions.create(
+                            model="gpt-4o-mini",
+                            messages=[{
+                                "role": "user",
+                                "content": [
+                                    {"type": "text", "text": "Describe brevemente este dibujo en español y sugiere cómo mejorarlo desde el diseño interactivo."},
+                                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64_img}"}}
+                                ]
+                            }]
+                        )
+                        
+                        full_txt = response.choices[0].message.content
+                        info_area.markdown(f"<div class='result-box'>{full_txt}</div>", unsafe_allow_html=True)
+                        
+                    except Exception as e:
+                        st.error(f"Error: {e}")
             else:
-                st.warning("El lienzo está vacío.")
+                st.info("Dibuja algo antes de analizar.")
+        else:
+            info_area.write("Tu análisis aparecerá aquí.")
 
-st.markdown("<br><center><p style='opacity: 0.5;'>SketchStudio v5.0 | Universidad EAFIT</p></center>", unsafe_allow_html=True)
+st.markdown("<br><center><p style='opacity: 0.5;'>SketchMind v4.0 | Creado para el diseño interactivo</p></center>", unsafe_allow_html=True)
